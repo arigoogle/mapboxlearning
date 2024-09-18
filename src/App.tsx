@@ -53,42 +53,47 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!map) return;
-
+  
     const addCircle = () => {
       try {
         const center: [number, number] = [longitude, latitude];
         const centerPoint = point(center);
         const circleFeature = circle(centerPoint, 0.5);
-
+  
         if (map.getLayer('circle-fill')) map.removeLayer('circle-fill');
         if (map.getLayer('circle-outline')) map.removeLayer('circle-outline');
         if (map.getSource('circle')) map.removeSource('circle');
-
+  
         map.addSource('circle', { type: 'geojson', data: circleFeature });
-
+  
         map.addLayer({
           id: 'circle-fill',
           type: 'fill',
           source: 'circle',
           paint: { 'fill-color': '#00b3fd', 'fill-opacity': 0.3 },
         });
-
+  
         map.addLayer({
           id: 'circle-outline',
           type: 'line',
           source: 'circle',
           paint: { 'line-color': '#007cbf', 'line-width': 2 },
         });
-
-        map.flyTo({ center: center, zoom: 15 });
+  
+        map.flyTo({ center: center, zoom: 11 });
         console.log('Circle added successfully');
       } catch (err) {
         console.error('Error adding circle:', err);
         setError('Failed to add circle to the map');
       }
     };
-
-    addCircle();
+  
+    // Check if the map is loaded before adding the circle
+    if (map.loaded()) {
+      addCircle();
+    } else {
+      map.once('load', addCircle);
+    }
   }, [map, longitude, latitude]);
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -103,7 +108,7 @@ const App: React.FC = () => {
   return (
     <div className='App'>
       <h1 className='text-3xl font-bold underline'>Mapbox Circle Demo</h1>
-      <div id='map' style={{ width: '100%', height: '500px' }}></div>
+      <div id='map' style={{ width: '1000px', height: '500px' }}></div>
       <div style={{ marginTop: '20px' }}>
         <form onSubmit={handleSubmit}>
           <span>Longitude</span>
@@ -122,7 +127,7 @@ const App: React.FC = () => {
             placeholder="Latitude"
             step="any"
           />
-          <Button type="submit">Update Map</Button>
+          <Button type="submit" className='mt-3'>Update Map</Button>
         </form>
       </div>
     </div>
