@@ -1,70 +1,132 @@
-import { useEffect } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import mapboxgl from 'mapbox-gl';
-import * as turf from '@turf/turf';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { point, circle } from '@turf/turf';
 import './App.css';
+import { Input } from './components/ui/input';
+import { Button } from './components/ui/button';
 
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXJpZGV2IiwiYSI6ImNtMG95cXdheTBkY3EyaXF5ZjRzZHEyb2UifQ.w-8TMZJ2AxoXmKBaKGopsw';
 
-function App() {
+
+const DEFAULT_CENTER: [number, number] = [106.799412, -6.244669]; // Blok M coordinates
+
+const App: React.FC = () => {
+  const [map, setMap] = useState<mapboxgl.Map | null>(null);
+  const [longitude, setLongitude] = useState<number>(DEFAULT_CENTER[0]);
+  const [latitude, setLatitude] = useState<number>(DEFAULT_CENTER[1]);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    // Initialize the map
-    const map = new mapboxgl.Map({
-      container: 'map', // container ID
-      style: 'mapbox://styles/mapbox/streets-v11', // style URL
-      center: [106.799412, -6.244669], // starting position [longitude, latitude] Blok M
-      zoom: 15, // starting zoom
-    });
+    if (!mapboxgl.supported()) {
+      setError("Your browser does not support Mapbox GL");
+      return;
+    }
 
-    // Once the map is loaded, add the circle
-    map.on('load', () => {
-      const center = [106.799412, -6.244669]; // Blok M coordinates
-
-      // Create a circle using Turf.js
-      const circle = turf.circle(center, 0.5, {
-        steps: 64, // smooth circle
-        units: 'kilometers', // 0.5 km = 500 meters
+    try {
+      const newMap = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/streets-v11',
+        center: DEFAULT_CENTER,
+        zoom: 15,
       });
 
-      // Add the circle as a GeoJSON data source
-      map.addSource('circle', {
-        type: 'geojson',
-        data: circle,
+      newMap.on('load', () => {
+        setMap(newMap);
+        console.log('Map loaded successfully');
       });
 
-      // Add the circle to the map as a fill layer
-      map.addLayer({
-        id: 'circle-fill',
-        type: 'fill',
-        source: 'circle',
-        layout: {},
-        paint: {
-          'fill-color': '#00b3fd', // color
-          'fill-opacity': 0.3, // transparency
-        },
+      newMap.on('error', (e) => {
+        console.error('Mapbox error:', e);
+        setError('An error occurred while loading the map');
       });
 
-      // Add an outline for the circle
-      map.addLayer({
-        id: 'circle-outline',
-        type: 'line',
-        source: 'circle',
-        layout: {},
-        paint: {
-          'line-color': '#007cbf',
-          'line-width': 2,
-        },
-      });
-    });
-
-    // Cleanup on unmount
-    return () => map.remove();
+      return () => {
+        newMap.remove();
+        console.log('Map removed');
+      };
+    } catch (err) {
+      console.error('Error initializing map:', err);
+      setError('Failed to initialize the map');
+    }
   }, []);
 
+  useEffect(() => {
+    if (!map) return;
+
+    const addCircle = () => {
+      try {
+        const center: [number, number] = [longitude, latitude];
+        const centerPoint = point(center);
+        const circleFeature = circle(centerPoint, 0.5);
+
+        if (map.getLayer('circle-fill')) map.removeLayer('circle-fill');
+        if (map.getLayer('circle-outline')) map.removeLayer('circle-outline');
+        if (map.getSource('circle')) map.removeSource('circle');
+
+        map.addSource('circle', { type: 'geojson', data: circleFeature });
+
+        map.addLayer({
+          id: 'circle-fill',
+          type: 'fill',
+          source: 'circle',
+          paint: { 'fill-color': '#00b3fd', 'fill-opacity': 0.3 },
+        });
+
+        map.addLayer({
+          id: 'circle-outline',
+          type: 'line',
+          source: 'circle',
+          paint: { 'line-color': '#007cbf', 'line-width': 2 },
+        });
+
+        map.flyTo({ center: center, zoom: 15 });
+        console.log('Circle added successfully');
+      } catch (err) {
+        console.error('Error adding circle:', err);
+        setError('Failed to add circle to the map');
+      }
+    };
+
+    addCircle();
+  }, [map, longitude, latitude]);
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    console.log('Form submitted with:', { longitude, latitude });
+  };
+
+  if (error) {
+    return <div className="error">{error}</div>;
+  }
+
   return (
-    <div className="App">
-      <div id="map" style={{ width: '100vw', height: '100vh' }}></div>
+    <div className='App'>
+      <h1 className='text-3xl font-bold underline'>Mapbox Circle Demo</h1>
+      <div id='map' style={{ width: '100%', height: '500px' }}></div>
+      <div style={{ marginTop: '20px' }}>
+        <form onSubmit={handleSubmit}>
+          <span>Longitude</span>
+          <Input
+            type="number"
+            value={longitude}
+            onChange={(e) => setLongitude(parseFloat(e.target.value))}
+            placeholder="Longitude"
+            step="any"
+          />
+          <span>Latitude</span>
+          <Input
+            type="number"
+            value={latitude}
+            onChange={(e) => setLatitude(parseFloat(e.target.value))}
+            placeholder="Latitude"
+            step="any"
+          />
+          <Button type="submit">Update Map</Button>
+        </form>
+      </div>
     </div>
   );
-}
+};
 
 export default App;
